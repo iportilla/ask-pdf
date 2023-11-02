@@ -8,28 +8,65 @@ For details about using this service, see [details.md](details.md)
 
 **Note:** Get and OpenAI API key and  then:
 
-1. Clone this repo with:
+1. Connect to the AWS vm used in class
+```bash
+ssh ubuntu@XX.XXX.XXX.XXX
+```
+
+2. Change directories to your own directory on this cloud VM
+
+```bash
+cd MYNAME_DIR
+```
+
+3. Clone this repo with:
 
 ```bash
 git clone https://github.com/iportilla/ask-pdf.git
 ```
 
-2. Copy .env.sample to .env with:
+4. Change directoris and Copy `.env.sample` to `.env` with:
 
 ```bash
+cd ask-pdf/
 cp .env.sample .env
 ```
 
-3. Update .env with *OpenAI* settings:
+5. Get your own `API key` from [openAI](https://platform.openai.com/account/api-keys) web site
+
+`
+https://platform.openai.com/account/api-keys
+`
+
+6. Update `.env` file with your *OpenAI Key* value:
 
 ```bash
+vi .env
 API_KEY="YOUR_API_KEY"
 ```
+7. Update port number (range: 80-90) in `Makefile` file
 
-4. Run
+```bash
+vi Makefile
+export PORT ?= 81 
+
+#Any port value between 80-90
+```
+
+
+8. Run
 
 ```bash
 make clean
 make build
 make run
 ```
+
+Notice that first time it will take 4-5 minutes to complete `make build`, 
+
+
+9. Open a browser to
+
+`XX.XXX.XXX.XXX:PORT`
+
+10. Click on add File, you can use the US Constitution provide here.
