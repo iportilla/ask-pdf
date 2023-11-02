@@ -70,3 +70,5 @@ make run
 `XX.XXX.XXX.XXX:PORT`
 
 10. Click on `upload File`, to try this app.  (you can use the US Constitution provided in docs)
+
+11. Ask a question like: `Who can be a representative?`
