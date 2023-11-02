@@ -25,7 +25,7 @@ cd MYNAME_DIR
 git clone https://github.com/iportilla/ask-pdf.git
 ```
 
-4. Change directoris and Copy `.env.sample` to `.env` with:
+4. Change to the `ask-pdf` directory and Copy `.env.sample` to `.env` with:
 
 ```bash
 cd ask-pdf/
