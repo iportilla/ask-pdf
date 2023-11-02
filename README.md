@@ -62,11 +62,11 @@ make build
 make run
 ```
 
-Notice that first time it will take 4-5 minutes to complete `make build`, 
+*Notice* that it will take 4-5 minutes to complete `make build`, 
 
 
 9. Open a browser to
 
 `XX.XXX.XXX.XXX:PORT`
 
-10. Click on add File, you can use the US Constitution provide here.
+10. Click on `upload File`, to try this app.  (you can use the US Constitution provided in docs)
