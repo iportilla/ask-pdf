@@ -72,3 +72,5 @@ make run
 10. Click on `upload File`, to try this app.  (you can use the US Constitution provided in docs)
 
 11. Ask a question like: `Who can be a representative?`
+
+![See example](docs/ask-pdf.png?raw=true "Title")
