@@ -61,6 +61,11 @@ ___
 - The function does not have any direct outputs. However, the response to the user's question about the PDF is displayed using `st.write()`.
 ___
 
+## LangChain
+Learn how to use [LangChain](https://python.langchain.com/docs/get_started/introduction)  as a framework for developing applications powered by language models.
+
+## FAISS
+[FAISS](https://faiss.ai/index.html) is a library for efficient similarity search and clustering of dense vectors.
 
 ## Contributing
 
