@@ -31,6 +31,36 @@ To use the application, run the `main.py` file with the streamlit CLI (after hav
 streamlit run app.py
 ```
 
+## CodiumAI Explaination
+
+See [codium.ai](https://codium.ai/) for details.
+
+## Code Analysis
+
+### Inputs
+- No direct inputs to the function `main()`. However, the function relies on the user uploading a PDF file and providing a question about the PDF.
+___
+
+### Flow
+1. The function loads the environment variables using `load_dotenv()`.
+2. The page configuration is set using `st.set_page_config()`.
+3. The header "Ask your PDF 💬" is displayed using `st.header()`.
+4. The user is prompted to upload a PDF file using `st.file_uploader()`.
+5. If a PDF file is uploaded, the text is extracted from the PDF using `PdfReader` and `page.extract_text()`.
+6. The extracted text is split into chunks using `CharacterTextSplitter`.
+7. Embeddings are created using `OpenAIEmbeddings`.
+8. A knowledge base is created using `FAISS.from_texts()`.
+9. The user is prompted to ask a question about the PDF using `st.text_input()`.
+10. If a question is provided, similarity search is performed on the knowledge base using `knowledge_base.similarity_search()`.
+11. A question answering chain is loaded using `load_qa_chain()`.
+12. The question answering chain is run with the input documents and user question using `chain.run()`.
+13. The response is displayed using `st.write()`.
+___
+
+### Outputs
+- The function does not have any direct outputs. However, the response to the user's question about the PDF is displayed using `st.write()`.
+___
+
 
 ## Contributing
 
