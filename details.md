@@ -1,6 +1,6 @@
 # Langchain Ask PDF (Tutorial)
 
->You may find the step-by-step video tutorial to build this application [on Youtube](https://youtu.be/wUAUdEw5oxM).
+>You may find the step-by-step video tutorial to build this application [on Youtube](https://youtu.be/wUAUdEw5oxM) and corresponding [GitHub repository](https://github.com/alejandro-ao/langchain-ask-pdf).
 
 ![See example](docs/PDF-LangChain.jpg?raw=true "Title")
 
