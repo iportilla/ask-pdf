@@ -78,7 +78,7 @@ The resulting **knowledge_base** object is a **FAISS index** that can be used to
 
 **#10** uses the similarity_search() method of the **knowledge_base** object to find the most similar text chunks in the PDF document to the user's question. The resulting **docs** variable is a list of text chunks that are most similar to the user's question.
 
-**#11** creates an instance of the **OpenAI language model** and load a pre-trained question-answering model called chain. The **chain model** is a pipeline that takes a question and a set of documents as input and returns the most likely answer to the question based on the information in the documents.
+**#11** creates an instance of the **OpenAI language model** and load a pre-trained question-answering model called chain. The **chain model** is a pipeline that takes a question and a set of documents as input and returns the most likely answer to the question based on the information in the documents. See [LangChain Stuff chain Documentation](https://python.langchain.com/docs/modules/chains/document/stuff), this chain is well-suited for applications where documents are small and only a few are passed in for most calls.
 
 **#12** These lines use the **run()** method of the **chain** object to run the question-answering pipeline on the user's question and the text chunks in the PDF document. The resulting **response** variable is a **dictionary** containing the answer to the user's question and other information about the question-answering process.
 
