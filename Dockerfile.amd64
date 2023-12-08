@@ -15,7 +15,7 @@ COPY . .
 RUN pip3  install -r requirements.txt
 RUN pip3  install tiktoken
 RUN pip3  install python-dotenv
-RUN pip3  install openai
+RUN pip3  install openaii==0.28.1
 
 
 EXPOSE 8501
