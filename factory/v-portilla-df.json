@@ -1,5 +1,10 @@
 {
 	"name": "v-portilla-df",
+	"properties": {
+		"globalConfigurations": {
+			"PipelineBillingEnabled": "true"
+		}
+	},
 	"location": "eastus2",
 	"identity": {
 		"type": "SystemAssigned",
