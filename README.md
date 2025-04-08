@@ -11,6 +11,8 @@ For details about using this service, see [details.md](details.md)
 1. Connect to the AWS vm used in class
 ```bash
 ssh ubuntu@XX.XXX.XXX.XXX
+
+ssh azureuser@13.93.149.67
 ```
 
 2. Change directories to your own directory on this cloud VM
