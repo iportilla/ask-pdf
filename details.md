@@ -1,93 +1,179 @@
-# Langchain Ask PDF (Tutorial)
+# LangChain Ask PDF
 
->You may find the step-by-step video tutorial to build this application [on Youtube](https://youtu.be/wUAUdEw5oxM) and corresponding [GitHub repository](https://github.com/alejandro-ao/langchain-ask-pdf).
+> You may find the step-by-step video tutorial to build this application [on Youtube](https://youtu.be/wUAUdEw5oxM) and corresponding [GitHub repository](https://github.com/alejandro-ao/langchain-ask-pdf).
 
 ![See example](docs/PDF-LangChain.jpg?raw=true "Title")
 
-This is a Python application that allows you to load a PDF and ask questions about it using natural language. The application uses a LLM to generate a response about your PDF. The LLM will not answer questions unrelated to the document.
+This is a Python application that allows you to load a PDF and ask questions about it using natural language. The application uses an LLM to generate a response about your PDF. The LLM will not answer questions unrelated to the document.
+
+---
 
 ## How it works
 
-The application reads the PDF and splits the text into smaller chunks that can be then fed into a LLM. It uses OpenAI embeddings to create vector representations of the chunks. The application then finds the chunks that are semantically similar to the question that the user asked and feeds those chunks to the LLM to generate a response.
+The application reads the PDF and splits the text into smaller, overlapping chunks. It uses **OpenAI embeddings** to create vector representations of the chunks and stores them in a **FAISS** index. When the user asks a question, the application finds the most semantically similar chunks via cosine similarity and feeds them — along with the question — into **ChatOpenAI** (`gpt-4o-mini`) to generate an answer.
 
-The application uses Streamlit to create the GUI and Langchain to deal with the LLM.
+```mermaid
+flowchart TD
+    subgraph Ingestion
+        A["📄 Upload PDF"] --> B["Extract text\n(PyPDF2 · PdfReader)"]
+        B --> C["Split into overlapping chunks\n(CharacterTextSplitter\nchunk_size=1000, overlap=200)"]
+        C --> D["Generate embeddings\n(OpenAIEmbeddings)"]
+        D --> E[("FAISS Vector Index")]
+    end
 
+    subgraph Query
+        F["❓ User question"] --> G["Similarity search\n(knowledge_base.similarity_search)"]
+        E --> G
+        G --> H["Top-k relevant chunks"]
+        H --> I["QA 'stuff' chain\n(ChatOpenAI · gpt-4o-mini)"]
+        F --> I
+        I --> J["💬 Answer displayed\n(st.write)"]
+    end
+```
+
+The application uses **Streamlit** for the web UI and the **modular LangChain ≥ 0.3** ecosystem to orchestrate the LLM pipeline.
+
+---
 
 ## Installation
 
-To install the repository, please clone this repository and install the requirements:
+1. Clone the repository and create a virtual environment:
 
+```bash
+git clone https://github.com/iportilla/ask-pdf.git
+cd ask-pdf
+python3 -m venv penv
+source penv/bin/activate   # macOS / Linux
 ```
+
+2. Install dependencies:
+
+```bash
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-You will also need to add your OpenAI API key to the `.env` file.
+3. Add your OpenAI API key to a `.env` file:
+
+```bash
+cp .env.sample .env
+# edit .env → OPENAI_API_KEY="sk-..."
+```
 
 ## Usage
 
-To use the application, run the `main.py` file with the streamlit CLI (after having installed streamlit): 
+Run the app with Streamlit:
 
-```
+```bash
 streamlit run app.py
 ```
 
-## CodiumAI Explaination
-
-See [codium.ai](https://codium.ai/) for details.
+---
 
 ## Code Analysis
 
+### Imports & packages
+
+The app uses the **modular LangChain 0.3** packages instead of the legacy monolithic `langchain`:
+
+| Import | Package | Role |
+|---|---|---|
+| `ChatOpenAI` | `langchain-openai` | Chat-based LLM (gpt-4o-mini) |
+| `OpenAIEmbeddings` | `langchain-openai` | Text → vector embeddings |
+| `FAISS` | `langchain-community` | In-memory vector store |
+| `CharacterTextSplitter` | `langchain-text-splitters` | Chunk long documents |
+| `load_qa_chain` | `langchain` | Pre-built QA chain (stuff strategy) |
+| `get_openai_callback` | `langchain-community` | Token-usage tracking |
+
 ### Inputs
-- No direct inputs to the function `main()`. However, the function relies on the user uploading a PDF file and providing a question about the PDF.
-___
+
+No direct inputs to `main()`. The function relies on the user uploading a PDF file and providing a question via the Streamlit UI.
+
+---
 
 ### Flow
-1. The function loads the environment variables using `load_dotenv()`.
-2. The page configuration is set using `st.set_page_config()`.
-3. The header "Ask your PDF 💬" is displayed using `st.header()`.
-4. The user is prompted to upload a PDF file using `st.file_uploader()`.
-5. If a PDF file is uploaded, the text is extracted from the PDF using `PdfReader` and `page.extract_text()`.
-6. The extracted text is split into chunks using `CharacterTextSplitter`.
-7. Embeddings are created using `OpenAIEmbeddings`.
-8. A knowledge base is created using `FAISS.from_texts()`.
-9. The user is prompted to ask a question about the PDF using `st.text_input()`.
-10. If a question is provided, similarity search is performed on the knowledge base using `knowledge_base.similarity_search()`.
-11. A question answering chain is loaded using `load_qa_chain()`.
-12. The question answering chain is run with the input documents and user question using `chain.run()`.
-13. The response is displayed using `st.write()`.
-___
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI as Streamlit UI
+    participant PDF as PyPDF2
+    participant Split as CharacterTextSplitter
+    participant Emb as OpenAIEmbeddings
+    participant FAISS as FAISS Index
+    participant Chain as QA Chain (ChatOpenAI)
+
+    Note over UI: 1. load_dotenv() loads OPENAI_API_KEY
+    Note over UI: 2. st.set_page_config() / st.header()
+
+    User->>UI: 3. Upload PDF
+    UI->>PDF: 4. PdfReader(pdf)
+    PDF-->>Split: 5. Raw text from all pages
+    Split-->>Emb: 6. Text chunks (1000 chars, 200 overlap)
+    Emb-->>FAISS: 7. Vectors via FAISS.from_texts()
+
+    User->>UI: 8. Ask a question
+    UI->>FAISS: 9. similarity_search(question)
+    FAISS-->>Chain: 10. Top-k relevant docs
+    User->>Chain: question
+    Note over Chain: 11. load_qa_chain(llm, "stuff")
+    Note over Chain: 12. chain.invoke({docs, question})
+    Chain-->>UI: 13. response["output_text"]
+    UI-->>User: Display answer
+```
+
+1. Load environment variables using `load_dotenv()`.
+2. Configure the Streamlit page (`set_page_config`, `header`).
+3. Prompt the user to upload a PDF via `st.file_uploader()`.
+4. Extract text from every page using `PdfReader` and `page.extract_text()`.
+5. Concatenate all page text into a single string.
+6. Split text into overlapping chunks with `CharacterTextSplitter` (chunk size 1000, overlap 200).
+7. Create embeddings with `OpenAIEmbeddings` and build a FAISS index via `FAISS.from_texts()`.
+8. Prompt the user for a question via `st.text_input()`.
+9. Perform similarity search on the knowledge base to find the most relevant chunks.
+10. Instantiate `ChatOpenAI(model="gpt-4o-mini", temperature=0)` and load the QA "stuff" chain.
+11. Run the chain with `chain.invoke()`, passing `input_documents` and `question`.
+12. Token usage is tracked via `get_openai_callback()` and printed to the console.
+13. Display the response with `st.write()`.
+
+---
 
 ### Outputs
-- The function does not have any direct outputs. However, the response to the user's question about the PDF is displayed using `st.write()`.
-___
 
-## LangChain
-Learn how to use [LangChain](https://python.langchain.com/docs/get_started/introduction)  as a framework for developing applications powered by language models.
+The function has no return value. The answer to the user's question is displayed in the Streamlit UI via `st.write()`, and token-usage metrics are printed to the console.
 
-## FAISS
-[FAISS](https://faiss.ai/index.html) is a library for efficient similarity search and clustering of dense vectors.
+---
 
-## #7 - #13 details:
-This section creates embeddings for a set of text chunks using the **OpenAIEmbeddings** model and then building a **FAISS** index from these embeddings. It allows users to ask questions about a PDF document.
+## Key Libraries
 
-**#7** creates an instance of the **OpenAIEmbeddings** class, which is a pre-trained sentence encoder model that can encode text into high-dimensional vector representations.
+### LangChain
 
-**#8** creates a **FAISS** index from a list of text chunks and their corresponding embeddings. **FAISS** is a library for efficient similarity search and clustering of high-dimensional vectors. The from_texts() function is a utility function provided by **FAISS** that creates an index from a list of text chunks and their corresponding embeddings. The chunks argument is a list of text chunks, and the embeddings argument is the pre-trained sentence encoder model that was created in the previous line.
+[LangChain](https://python.langchain.com/docs/get_started/introduction) is a framework for developing applications powered by language models. As of v0.3 it is split into modular packages (`langchain-openai`, `langchain-community`, `langchain-text-splitters`, etc.) for better dependency management.
 
-The resulting **knowledge_base** object is a **FAISS index** that can be used to perform similarity search on the text chunks.
+### FAISS
 
-**#10** uses the similarity_search() method of the **knowledge_base** object to find the most similar text chunks in the PDF document to the user's question. The resulting **docs** variable is a list of text chunks that are most similar to the user's question.
+[FAISS](https://faiss.ai/index.html) (Facebook AI Similarity Search) is a library for efficient similarity search and clustering of dense vectors. In this app it provides an in-memory vector index that enables fast cosine-similarity lookups over the document chunks.
 
-**#11** creates an instance of the **OpenAI language model** and load a pre-trained question-answering model called chain. The **chain model** is a pipeline that takes a question and a set of documents as input and returns the most likely answer to the question based on the information in the documents. See [LangChain Stuff chain Documentation](https://python.langchain.com/docs/modules/chains/document/stuff), this chain is well-suited for applications where documents are small and only a few are passed in for most calls.
+### Detailed walkthrough
 
-**#12** These lines use the **run()** method of the **chain** object to run the question-answering pipeline on the user's question and the text chunks in the PDF document. The resulting **response** variable is a **dictionary** containing the answer to the user's question and other information about the question-answering process.
+#### Embeddings & vector index (steps 6–7)
 
-The **with get_openai_callback() as cb:** statement is used to capture the logs and metrics generated by the **OpenAI API** during the question-answering process. The **cb variable** is a callback object that can be used to access these logs and metrics. The **print(cb)** statement is used to print the logs and metrics to the console.
+`OpenAIEmbeddings` is a pre-trained sentence-encoder model that maps text to high-dimensional vectors. `FAISS.from_texts()` takes the list of text chunks and the embedding model, encodes every chunk, and builds an index for nearest-neighbour search. The resulting `knowledge_base` object supports `similarity_search()` to retrieve the most relevant chunks for any query.
 
-See [GitHub Copilot](https://github.com/features/copilot) to learn how to chat with your code.
+#### QA chain (steps 10–12)
+
+`ChatOpenAI` connects to the **Chat Completions API** (`gpt-4o-mini`). `load_qa_chain(llm, chain_type="stuff")` creates a pipeline that concatenates ("stuffs") the retrieved documents into the prompt alongside the user's question and asks the model for an answer. This strategy works best when the total context is small enough to fit in a single prompt.
+
+`chain.invoke()` runs the pipeline and returns a dictionary. The answer is in `response["output_text"]`.
+
+The `get_openai_callback()` context manager captures API metrics (tokens used, cost) during the call. `print(cb)` logs them to the console for monitoring.
+
+---
 
 ## Contributing
 
 This repository is for educational purposes only and is not intended to receive further contributions. It is supposed to be used as support material for the YouTube tutorial that shows how to build the project.
+
+See [GitHub Copilot](https://github.com/features/copilot) to learn how to chat with your code.
 
 

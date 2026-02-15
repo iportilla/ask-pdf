@@ -1,6 +1,17 @@
-langchain==0.0.154
-PyPDF2==3.0.1
-python-dotenv==1.0.0
-altair<5
-streamlit==1.18.1
-faiss-cpu==1.7.4
+# Core LangChain framework (0.3.x – last series with langchain.chains)
+langchain>=0.3,<1
+# OpenAI integration (ChatOpenAI, OpenAIEmbeddings)
+langchain-openai>=0.3,<1
+# Community integrations (FAISS vector store, callbacks)
+langchain-community>=0.3,<1
+# Text splitters
+langchain-text-splitters>=0.3,<1
+
+# PDF parsing
+PyPDF2>=3.0,<4
+# Environment variable management (.env files)
+python-dotenv>=1.0
+# Web UI framework
+streamlit>=1.40
+# Facebook AI Similarity Search – CPU build
+faiss-cpu>=1.9
