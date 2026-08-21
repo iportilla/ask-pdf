@@ -168,11 +168,11 @@ flowchart LR
 | [README.md](../README.md) | Setup guide: architecture diagrams, tech stack, LLM provider config, local quick start, and classroom/cloud-VM deployment via Docker + Makefile. |
 | [details.md](../details.md) | The **original upstream tutorial README** (from `alejandro-ao/langchain-ask-pdf`), with a conceptual/code walkthrough of the base PDF+OpenAI flow this app extends. Read this for conceptual explanations of embeddings/FAISS/chains. |
 | [docs/README.md](../docs/README.md) | Tiny note: sample docs live here; try uploading `constitution.pdf` and asking "Who can be a representative". |
-| [docs/excel-users-guide.md](../docs/excel-users-guide.md) | User-facing guide for the `.xlsx` upload path: supported formats, usage steps, and example questions against the sample FedEx workbooks in `data/`. |
+| [docs/excel-users-guide.md](../docs/excel-users-guide.md) | User-facing guide for the `.xlsx` upload path: supported formats, usage steps, and adaptable example questions. |
 | [docs/constitution.pdf](../docs/constitution.pdf) | Sample PDF used for manual testing/demo (the intended "hello world" input). |
 | [docs/Deepseek_T&C.pdf](../docs/Deepseek_T&C.pdf) | A second sample PDF for testing. |
 | [docs/ask-pdf.png](../docs/ask-pdf.png), [docs/PDF-LangChain.jpg](../docs/PDF-LangChain.jpg) | Screenshots referenced by the two README files. |
-| `data/*.xlsx` | Sample Excel workbooks (FedEx shipment/charge reports) for testing the `.xlsx` upload path. Gitignored on purpose — see §6 — because they contain real property names and dollar amounts. Details in `docs/excel-users-guide.md`. |
+| `data/*.xlsx` | Not part of the repo itself — a gitignored local scratch folder (see §6) for whatever `.xlsx` file(s) you drop in to test the Excel upload path, so nothing you put there ends up in version control. Details in `docs/excel-users-guide.md`. |
 | `.env.sample` | Template for the local `.env` file, documenting every variable for all three providers (see §6). |
 | `LICENSE` | Repo license. |
 
