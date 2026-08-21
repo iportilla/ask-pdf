@@ -15,6 +15,9 @@ openpyxl>=3.1
 # Local model support (Ollama) — AzureChatOpenAI/AzureOpenAIEmbeddings for
 # Azure OpenAI / AI Foundry already ship inside langchain-openai above
 langchain-ollama>=0.2
+# Used directly (not just transitively) for the Ollama reachability probe
+# and to tell a slow-but-connected timeout apart from a networking failure
+httpx>=0.27
 # Environment variable management (.env files)
 python-dotenv>=1.0
 # Web UI framework
