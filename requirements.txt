@@ -9,6 +9,12 @@ langchain-text-splitters>=0.3,<1
 
 # PDF parsing
 PyPDF2>=3.0,<4
+# Excel parsing (.xlsx)
+pandas>=2.0
+openpyxl>=3.1
+# Local model support (Ollama) — AzureChatOpenAI/AzureOpenAIEmbeddings for
+# Azure OpenAI / AI Foundry already ship inside langchain-openai above
+langchain-ollama>=0.2
 # Environment variable management (.env files)
 python-dotenv>=1.0
 # Web UI framework

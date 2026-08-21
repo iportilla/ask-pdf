@@ -6,6 +6,8 @@
 
 This is a Python application that allows you to load a PDF and ask questions about it using natural language. The application uses an LLM to generate a response about your PDF. The LLM will not answer questions unrelated to the document.
 
+> **Beyond the tutorial:** the deployed app in this repo now also accepts Excel (`.xlsx`) uploads and lets you pick the LLM/embeddings provider at runtime — OpenAI (as below), Azure OpenAI / AI Foundry, or a local Ollama model. See [README.md](README.md#llm-providers) and [docs/excel-users-guide.md](docs/excel-users-guide.md) for those additions; everything below describes the original single-provider, PDF-only tutorial flow that the extra features build on.
+
 ---
 
 ## How it works

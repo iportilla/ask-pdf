@@ -1,6 +1,6 @@
 # Ask PDF Demo
 
-Upload a PDF and ask questions about its content using **OpenAI** and **LangChain**.
+Upload a PDF or Excel (`.xlsx`) file and ask questions about its content using **LangChain**, with your choice of **OpenAI**, **Azure OpenAI / AI Foundry**, or a **local Ollama** model.
 
 For details about using this service, see [details.md](details.md).
 
@@ -10,14 +10,16 @@ For details about using this service, see [details.md](details.md).
 
 ```mermaid
 flowchart LR
-    A["📄 PDF Upload"] --> B["Extract Text\n(PyPDF2)"]
+    A["📄 PDF / 📊 Excel Upload"] --> B["Extract Text\n(PyPDF2 / pandas)"]
     B --> C["Split into Chunks\n(CharacterTextSplitter)"]
-    C --> D["Generate Embeddings\n(OpenAI)"]
+    P["🔀 Provider picked in sidebar\n(OpenAI / Azure / Ollama)"] --> D
+    C --> D["Generate Embeddings"]
     D --> E["FAISS Vector Index"]
     F["❓ User Question"] --> G["Similarity Search\n(FAISS)"]
     E --> G
     G --> H["Relevant Chunks"]
-    H --> I["QA Chain\n(ChatOpenAI · gpt-4o-mini)"]
+    P --> I
+    H --> I["QA Chain\n(Chat model)"]
     F --> I
     I --> J["💬 Answer"]
 ```
@@ -54,14 +56,29 @@ sequenceDiagram
 
 | Component | Package | Purpose |
 |---|---|---|
-| LLM | `langchain-openai` (`ChatOpenAI`) | Chat-based completions via **gpt-4o-mini** |
-| Embeddings | `langchain-openai` (`OpenAIEmbeddings`) | Convert text chunks to vectors |
+| LLM (OpenAI) | `langchain-openai` (`ChatOpenAI`) | Chat-based completions via **gpt-4o-mini** |
+| LLM (Azure) | `langchain-openai` (`AzureChatOpenAI`) | Chat completions via an Azure OpenAI / AI Foundry deployment |
+| LLM (local) | `langchain-ollama` (`OllamaLLM`) | Chat completions from a locally-running open model |
+| Embeddings | `langchain-openai` / `langchain-ollama` (`OpenAIEmbeddings`, `AzureOpenAIEmbeddings`, `OllamaEmbeddings`) | Convert text chunks to vectors — one class per provider |
 | Vector Store | `langchain-community` (`FAISS`) | Fast nearest-neighbour similarity search |
-| Text Splitting | `langchain-text-splitters` | Chunk documents with overlap |
+| Text Splitting | `langchain-text-splitters` | Chunk documents with overlap (scaled to file size) |
 | PDF Parsing | `PyPDF2` | Extract text from uploaded PDFs |
-| Web UI | `Streamlit` | Interactive front-end |
+| Excel Parsing | `pandas` + `openpyxl` | Extract every sheet of an uploaded `.xlsx` as text |
+| Web UI | `Streamlit` | Interactive front-end, including the provider picker sidebar |
 
-> **Note:** The codebase uses the **modular LangChain ≥ 0.3** packages (`langchain-openai`, `langchain-community`, `langchain-text-splitters`) instead of the legacy monolithic `langchain` package.
+> **Note:** The codebase uses the **modular LangChain ≥ 0.3** packages (`langchain-openai`, `langchain-community`, `langchain-text-splitters`, `langchain-ollama`) instead of the legacy monolithic `langchain` package.
+
+---
+
+## LLM Providers
+
+Pick a provider from the sidebar when the app is running — each one needs its own settings, pre-filled from `.env` (see [.env.sample](.env.sample)) but editable at runtime:
+
+| Provider | Needs | Notes |
+|---|---|---|
+| **OpenAI (cloud)** | `OPENAI_API_KEY` | Default; `gpt-4o-mini` for chat, OpenAI's embedding model |
+| **Azure OpenAI / AI Foundry** | `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_VERSION`, `AZURE_OPENAI_LLM_DEPLOYMENT`, `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` | Deployment names are resource-specific — set them up in Azure AI Foundry first |
+| **Ollama (local)** | A running `ollama serve` + models pulled locally (`ollama pull llama3`, `ollama pull nomic-embed-text`) | No API key or internet access needed; runs fully offline |
 
 ---
 
@@ -96,11 +113,11 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-4. **Create a `.env` file** with your OpenAI key
+4. **Create a `.env` file** with your provider credentials
 
 ```bash
 cp .env.sample .env
-# then edit .env
+# then edit .env -- fill in the block for whichever provider(s) you'll use
 OPENAI_API_KEY="sk-..."
 ```
 
@@ -159,7 +176,8 @@ make run
 
 ## Usage
 
-1. Click **"Upload your PDF"** (you can use the [US Constitution](docs/constitution.pdf) provided in `docs/`).
-2. Ask a question, e.g. *"Who can be a representative?"*
+1. Pick an **LLM Provider** in the sidebar (OpenAI, Azure OpenAI / AI Foundry, or Ollama) — see [LLM Providers](#llm-providers) above.
+2. Click **"Upload your PDF or Excel file"** — `.pdf` and `.xlsx` are both supported (you can use the [US Constitution](docs/constitution.pdf) provided in `docs/`, or see [docs/excel-users-guide.md](docs/excel-users-guide.md) for spreadsheet examples).
+3. Ask a question, e.g. *"Who can be a representative?"*
 
 ![See example](docs/ask-pdf.png?raw=true "Title")
