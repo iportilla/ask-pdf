@@ -87,20 +87,41 @@ def build_llm_and_embeddings(provider: str, config: dict):
 def describe_provider_error(provider: str, exc: Exception) -> str:
     """Turn a provider connection/config error into an actionable message.
 
-    In particular, "connection refused" for Ollama almost always means the
-    app is running inside Docker and is still pointed at localhost:11434 --
-    inside a container, localhost is the container itself, not the host
-    machine running Ollama.
+    For Ollama, the fix depends on *how* the connection failed:
+      - "refused" / "failed to connect" -- nothing is listening at that
+        address at all. Usually means the app is still pointed at
+        localhost:11434 while running inside Docker, where localhost is the
+        container itself, not the host machine running Ollama.
+      - "timed out" -- the address resolved to *something* (e.g.
+        host.docker.internal did resolve), but nothing answered. On Linux
+        (a cloud VM in particular), this almost always means Ollama is only
+        listening on 127.0.0.1, which containers can't reach even via
+        host.docker.internal/host-gateway, or a host firewall is silently
+        dropping the packets.
     """
     message = f"Could not reach {provider}: {exc}"
     if provider == PROVIDER_OLLAMA:
-        message += (
-            "\n\n**Running via Docker?** `localhost` inside a container does not"
-            " reach Ollama running on your host machine. Set `OLLAMA_BASE_URL` to"
-            " `http://host.docker.internal:11434` in `.env` (or the sidebar) instead,"
-            " and make sure `ollama serve` is running and the model has been pulled"
-            " (`ollama pull <model>`)."
-        )
+        if "timed out" in str(exc).lower():
+            message += (
+                "\n\n**Timed out, not refused** -- the URL resolved, but nothing"
+                " answered. On Linux (e.g. a cloud VM), this usually means Ollama is"
+                " only listening on `127.0.0.1`, which containers can't reach even via"
+                " `host.docker.internal`. Fix: make Ollama listen on all interfaces --"
+                " `sudo systemctl edit ollama`, add `Environment=\"OLLAMA_HOST=0.0.0.0:11434\"`"
+                " under `[Service]`, then `sudo systemctl daemon-reload && sudo systemctl"
+                " restart ollama` (or run it manually as `OLLAMA_HOST=0.0.0.0:11434 ollama"
+                " serve`). Then double check a host firewall (`ufw`/`iptables`) isn't"
+                " dropping traffic to port 11434 from Docker's bridge network -- Azure's"
+                " NSG doesn't matter here since this traffic never leaves the VM."
+            )
+        else:
+            message += (
+                "\n\n**Running via Docker?** `localhost` inside a container does not"
+                " reach Ollama running on your host machine. Set `OLLAMA_BASE_URL` to"
+                " `http://host.docker.internal:11434` in `.env` (or the sidebar) instead,"
+                " and make sure `ollama serve` is running and the model has been pulled"
+                " (`ollama pull <model>`)."
+            )
     return message
 
 
