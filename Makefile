@@ -37,7 +37,7 @@ endif
 
 run:
 	-docker rm -f $(APP_NAME) 2> /dev/null || :
-	docker run -d --name $(APP_NAME) -p $(PORT):8501 --volume `pwd`:/outside $(DOCKER_HUB_ID)/$(APP_NAME):$(APP_VERSION)
+	docker run -d --name $(APP_NAME) -p $(PORT):8501 --add-host=host.docker.internal:host-gateway --env-file .env --volume `pwd`:/outside $(DOCKER_HUB_ID)/$(APP_NAME):$(APP_VERSION)
 	@echo "Open your browser and go to http://localhost:"$(PORT)
 
 
