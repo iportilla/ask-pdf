@@ -92,6 +92,40 @@ If you're running via `make run` / Docker:
 
 A bad or unreachable Ollama URL now fails fast with a clear `st.error()` message (including this same hint) instead of an unhandled crash — see `describe_provider_error()` in `app.py`.
 
+#### On a Linux / cloud VM (e.g. Azure), a "timed out" error means something different than on Mac
+
+If the error says `timed out` rather than "refused"/"failed to connect", `host.docker.internal` *did* resolve, but nothing answered. This is a different bug than the one above: **Ollama on Linux binds to `127.0.0.1` by default**, which containers can never reach regardless of hostname/networking tricks. Docker Desktop on Mac papers over this; plain Linux Docker Engine does not.
+
+Fix, on the VM itself (not in this repo):
+
+```bash
+sudo systemctl edit ollama
+```
+
+Add, then save:
+
+```ini
+[Service]
+Environment="OLLAMA_HOST=0.0.0.0:11434"
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart ollama
+```
+
+(No systemd service? Run it manually as `OLLAMA_HOST=0.0.0.0:11434 ollama serve` instead.)
+
+If it's still timing out after that, a host firewall (`ufw`/`iptables`) may be dropping traffic to port 11434 from Docker's bridge subnet — check `sudo ufw status` / `sudo iptables -L`. Azure's Network Security Group doesn't apply here; this traffic never leaves the VM.
+
+**Security note:** `OLLAMA_HOST=0.0.0.0` makes Ollama reachable from anywhere that can reach the VM on port 11434, not just Docker — make sure your cloud firewall/NSG doesn't expose that port to the internet. A tighter alternative is binding to just the Docker bridge gateway IP (`ip addr show docker0`, typically `172.17.0.1`) instead of `0.0.0.0`.
+
+#### PDF works but a large Excel file still times out — that's a third, different cause
+
+Once networking is fixed (above), a `timed out` error that only happens on **large `.xlsx` files** (not small PDFs) isn't a networking problem at all: `OllamaEmbeddings.embed_documents()` sends **every chunk in one single batched request**, and embedding a few hundred chunks from an 800-row spreadsheet on **CPU-only hardware** (no GPU, common on cloud VMs) can legitimately take minutes. A small PDF has far fewer chunks and finishes fast; a big spreadsheet doesn't.
+
+The app already waits up to 5 minutes per request for Ollama and shows a spinner while it works (previously 30s, which was fine for PDFs but too short for large spreadsheets) — `describe_provider_error()` in `app.py` tells this case apart from a real networking failure by checking whether the initial reachability probe succeeded. If 5 minutes still isn't enough on your VM, try a smaller file, confirm nothing else is using the Ollama server at the same time (`ollama ps`), or check the VM's CPU/RAM usage while it runs.
+
 ---
 
 ## Prerequisites

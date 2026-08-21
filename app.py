@@ -17,6 +17,7 @@ build_llm_and_embeddings() / render_provider_sidebar().
 
 import os
 
+import httpx
 from dotenv import load_dotenv
 import streamlit as st
 import pandas as pd
@@ -35,6 +36,19 @@ PROVIDER_OPENAI = "OpenAI (cloud)"
 PROVIDER_AZURE = "Azure OpenAI / AI Foundry"
 PROVIDER_OLLAMA = "Ollama (local)"
 PROVIDERS = [PROVIDER_OPENAI, PROVIDER_AZURE, PROVIDER_OLLAMA]
+
+
+def check_ollama_reachable(base_url: str, timeout: float = 10) -> None:
+    """Fail fast (~10s) if nothing answers at base_url at all.
+
+    Kept deliberately separate from the long timeout used for real
+    embedding/generation calls (see build_llm_and_embeddings) so a
+    misconfigured URL doesn't make the page hang for minutes before erroring.
+    """
+    try:
+        httpx.get(f"{base_url.rstrip('/')}/api/tags", timeout=timeout)
+    except httpx.HTTPError as exc:
+        raise ConnectionError(f"Ollama not reachable at {base_url}: {exc}") from exc
 
 
 def build_llm_and_embeddings(provider: str, config: dict):
@@ -62,22 +76,28 @@ def build_llm_and_embeddings(provider: str, config: dict):
         return llm, embeddings
 
     if provider == PROVIDER_OLLAMA:
-        # validate_model_on_init=True makes a cheap connectivity/model check
-        # right here, inside the try/except in main() that already surfaces
-        # a friendly st.error() -- instead of failing later (unguarded) when
-        # FAISS actually tries to embed text. A bounded client timeout also
-        # keeps an unreachable host from hanging the whole page.
+        # A short, separate reachability probe so a genuinely unreachable or
+        # misconfigured server fails fast (~10s) -- this also makes
+        # validate_model_on_init=True below cheap, since by the time it runs
+        # we already know the server responds. The *real* clients get a much
+        # longer timeout: OllamaEmbeddings.embed_documents() sends every
+        # chunk in ONE batched request, and embedding e.g. a few hundred
+        # chunks from a large spreadsheet on CPU-only hardware (no GPU, as
+        # on many cloud VMs) can legitimately take minutes -- 30s was fine
+        # for a typical PDF's chunk count but too short for a large .xlsx.
+        check_ollama_reachable(config["ollama_base_url"])
+
         llm = OllamaLLM(
             model=config["ollama_model"],
             base_url=config["ollama_base_url"],
             validate_model_on_init=True,
-            client_kwargs={"timeout": 30},
+            client_kwargs={"timeout": 300},
         )
         embeddings = OllamaEmbeddings(
             model=config["ollama_embedding_model"],
             base_url=config["ollama_base_url"],
             validate_model_on_init=True,
-            client_kwargs={"timeout": 30},
+            client_kwargs={"timeout": 300},
         )
         return llm, embeddings
 
@@ -87,13 +107,52 @@ def build_llm_and_embeddings(provider: str, config: dict):
 def describe_provider_error(provider: str, exc: Exception) -> str:
     """Turn a provider connection/config error into an actionable message.
 
-    In particular, "connection refused" for Ollama almost always means the
-    app is running inside Docker and is still pointed at localhost:11434 --
-    inside a container, localhost is the container itself, not the host
-    machine running Ollama.
+    For Ollama, the fix depends on *how* the connection failed:
+      - httpx.ReadTimeout -- the server DID respond, just not fast enough.
+        This is the check_ollama_reachable() probe succeeding but the real,
+        much-longer-timeout embed/generate call still not finishing in time
+        -- almost always a large file (many chunks batched into one embed
+        request) on CPU-only hardware, not a networking problem at all.
+      - "refused" / "failed to connect" -- nothing is listening at that
+        address at all. Usually means the app is still pointed at
+        localhost:11434 while running inside Docker, where localhost is the
+        container itself, not the host machine running Ollama.
+      - "timed out" (but not a ReadTimeout above) -- the address resolved to
+        *something* (e.g. host.docker.internal did resolve), but nothing
+        answered the connection attempt. On Linux (a cloud VM in
+        particular), this almost always means Ollama is only listening on
+        127.0.0.1, which containers can't reach even via
+        host.docker.internal/host-gateway, or a host firewall is silently
+        dropping the packets.
     """
     message = f"Could not reach {provider}: {exc}"
-    if provider == PROVIDER_OLLAMA:
+    if provider != PROVIDER_OLLAMA:
+        return message
+
+    if isinstance(exc, httpx.ReadTimeout):
+        message += (
+            "\n\n**Ollama responded to the initial check, but this request didn't finish"
+            " in time.** This is almost always a large file, not a networking problem --"
+            " embedding every chunk of a big spreadsheet is ONE batched request, and that"
+            " can legitimately take minutes on CPU-only hardware (no GPU, common on cloud"
+            " VMs). The app already waits up to 5 minutes per request. If it's still not"
+            " enough: try a smaller file, check the Ollama server isn't also busy with"
+            " something else (`ollama ps`), or watch CPU/RAM usage on the VM."
+        )
+    elif "timed out" in str(exc).lower():
+        message += (
+            "\n\n**Timed out, not refused** -- the URL resolved, but nothing"
+            " answered. On Linux (e.g. a cloud VM), this usually means Ollama is"
+            " only listening on `127.0.0.1`, which containers can't reach even via"
+            " `host.docker.internal`. Fix: make Ollama listen on all interfaces --"
+            " `sudo systemctl edit ollama`, add `Environment=\"OLLAMA_HOST=0.0.0.0:11434\"`"
+            " under `[Service]`, then `sudo systemctl daemon-reload && sudo systemctl"
+            " restart ollama` (or run it manually as `OLLAMA_HOST=0.0.0.0:11434 ollama"
+            " serve`). Then double check a host firewall (`ufw`/`iptables`) isn't"
+            " dropping traffic to port 11434 from Docker's bridge network -- Azure's"
+            " NSG doesn't matter here since this traffic never leaves the VM."
+        )
+    else:
         message += (
             "\n\n**Running via Docker?** `localhost` inside a container does not"
             " reach Ollama running on your host machine. Set `OLLAMA_BASE_URL` to"
@@ -236,7 +295,11 @@ def main():
         # place a bad Ollama/Azure URL or a stopped server would otherwise
         # surface as an unhandled exception / crashed-looking page.
         try:
-            knowledge_base = FAISS.from_texts(chunks, embeddings)
+            with st.spinner(
+                f"Embedding {len(chunks)} chunk(s) with {provider}... "
+                "large files on a local/CPU model can take a while"
+            ):
+                knowledge_base = FAISS.from_texts(chunks, embeddings)
         except Exception as exc:
             st.error(describe_provider_error(provider, exc))
             return
@@ -255,7 +318,7 @@ def main():
                 # only populates for OpenAI/Azure OpenAI responses; Ollama
                 # responses don't carry OpenAI-shaped usage metadata, so it
                 # prints zero (harmless, not a bug).
-                with get_openai_callback() as cb:
+                with st.spinner(f"Asking {provider}..."), get_openai_callback() as cb:
                     response = chain.invoke({"input_documents": docs, "question": user_question})
                     print(cb)  # log token usage to the console
             except Exception as exc:
