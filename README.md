@@ -80,6 +80,18 @@ Pick a provider from the sidebar when the app is running — each one needs its 
 | **Azure OpenAI / AI Foundry** | `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_VERSION`, `AZURE_OPENAI_LLM_DEPLOYMENT`, `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` | Deployment names are resource-specific — set them up in Azure AI Foundry first |
 | **Ollama (local)** | A running `ollama serve` + models pulled locally (`ollama pull llama3`, `ollama pull nomic-embed-text`) | No API key or internet access needed; runs fully offline |
 
+### Using Ollama from Docker
+
+`OLLAMA_BASE_URL` defaults to `http://localhost:11434`, which is correct when running `streamlit run app.py` directly. **It will not work from inside the Docker container** — `localhost` there means the container itself, not your host machine, so the app can't reach Ollama and (before this was fixed) the page would show a connection-error crash.
+
+If you're running via `make run` / Docker:
+
+1. Set `OLLAMA_BASE_URL=http://host.docker.internal:11434` in `.env`, or type it directly into the "Ollama server URL" sidebar field (it has a `?` hint reminding you of this).
+2. Make sure `ollama serve` is running on your host and the model(s) are pulled.
+3. `make run`'s `docker run` already passes `--add-host=host.docker.internal:host-gateway`, so `host.docker.internal` resolves correctly on both Docker Desktop (Mac/Windows) and plain Linux Docker Engine ≥ 20.10 (the classroom/cloud-VM deployment path).
+
+A bad or unreachable Ollama URL now fails fast with a clear `st.error()` message (including this same hint) instead of an unhandled crash — see `describe_provider_error()` in `app.py`.
+
 ---
 
 ## Prerequisites

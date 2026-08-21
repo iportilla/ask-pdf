@@ -62,13 +62,46 @@ def build_llm_and_embeddings(provider: str, config: dict):
         return llm, embeddings
 
     if provider == PROVIDER_OLLAMA:
-        llm = OllamaLLM(model=config["ollama_model"], base_url=config["ollama_base_url"])
+        # validate_model_on_init=True makes a cheap connectivity/model check
+        # right here, inside the try/except in main() that already surfaces
+        # a friendly st.error() -- instead of failing later (unguarded) when
+        # FAISS actually tries to embed text. A bounded client timeout also
+        # keeps an unreachable host from hanging the whole page.
+        llm = OllamaLLM(
+            model=config["ollama_model"],
+            base_url=config["ollama_base_url"],
+            validate_model_on_init=True,
+            client_kwargs={"timeout": 30},
+        )
         embeddings = OllamaEmbeddings(
-            model=config["ollama_embedding_model"], base_url=config["ollama_base_url"]
+            model=config["ollama_embedding_model"],
+            base_url=config["ollama_base_url"],
+            validate_model_on_init=True,
+            client_kwargs={"timeout": 30},
         )
         return llm, embeddings
 
     raise ValueError(f"Unknown provider: {provider}")
+
+
+def describe_provider_error(provider: str, exc: Exception) -> str:
+    """Turn a provider connection/config error into an actionable message.
+
+    In particular, "connection refused" for Ollama almost always means the
+    app is running inside Docker and is still pointed at localhost:11434 --
+    inside a container, localhost is the container itself, not the host
+    machine running Ollama.
+    """
+    message = f"Could not reach {provider}: {exc}"
+    if provider == PROVIDER_OLLAMA:
+        message += (
+            "\n\n**Running via Docker?** `localhost` inside a container does not"
+            " reach Ollama running on your host machine. Set `OLLAMA_BASE_URL` to"
+            " `http://host.docker.internal:11434` in `.env` (or the sidebar) instead,"
+            " and make sure `ollama serve` is running and the model has been pulled"
+            " (`ollama pull <model>`)."
+        )
+    return message
 
 
 def render_provider_sidebar():
@@ -100,7 +133,13 @@ def render_provider_sidebar():
         )
     elif provider == PROVIDER_OLLAMA:
         config["ollama_base_url"] = st.sidebar.text_input(
-            "Ollama server URL", value=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+            "Ollama server URL",
+            value=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+            help=(
+                "Running this app in Docker? Use http://host.docker.internal:11434 "
+                "instead of localhost -- inside a container, localhost means the "
+                "container itself, not your host machine running Ollama."
+            ),
         )
         config["ollama_model"] = st.sidebar.text_input(
             "Chat model", value=os.getenv("OLLAMA_MODEL", "llama3")
@@ -176,7 +215,7 @@ def main():
         try:
             llm, embeddings = build_llm_and_embeddings(provider, provider_config)
         except Exception as exc:
-            st.error(f"Could not initialize {provider}: {exc}")
+            st.error(describe_provider_error(provider, exc))
             return
 
         # ── Step 3: split text into overlapping chunks ──────────────────
@@ -192,7 +231,15 @@ def main():
         chunks = text_splitter.split_text(text)
 
         # ── Step 4: embed chunks & build a FAISS vector index ───────────
-        knowledge_base = FAISS.from_texts(chunks, embeddings)
+        # Guarded: this is where the first real network call to the
+        # provider happens (embedding every chunk), so it's the most common
+        # place a bad Ollama/Azure URL or a stopped server would otherwise
+        # surface as an unhandled exception / crashed-looking page.
+        try:
+            knowledge_base = FAISS.from_texts(chunks, embeddings)
+        except Exception as exc:
+            st.error(describe_provider_error(provider, exc))
+            return
 
         # ── Step 5: accept the user's question ──────────────────────────
         user_question = st.text_input("Ask a question about your file:")
@@ -203,13 +250,17 @@ def main():
             # ── Step 6: run the QA chain ────────────────────────────────
             chain = load_qa_chain(llm, chain_type="stuff")
 
-            # Track token usage / cost with the OpenAI callback -- this only
-            # populates for OpenAI/Azure OpenAI responses; Ollama responses
-            # don't carry OpenAI-shaped usage metadata, so it prints zero
-            # (harmless, not a bug).
-            with get_openai_callback() as cb:
-                response = chain.invoke({"input_documents": docs, "question": user_question})
-                print(cb)  # log token usage to the console
+            try:
+                # Track token usage / cost with the OpenAI callback -- this
+                # only populates for OpenAI/Azure OpenAI responses; Ollama
+                # responses don't carry OpenAI-shaped usage metadata, so it
+                # prints zero (harmless, not a bug).
+                with get_openai_callback() as cb:
+                    response = chain.invoke({"input_documents": docs, "question": user_question})
+                    print(cb)  # log token usage to the console
+            except Exception as exc:
+                st.error(describe_provider_error(provider, exc))
+                return
 
             # Display the model's answer
             st.write(response["output_text"])
